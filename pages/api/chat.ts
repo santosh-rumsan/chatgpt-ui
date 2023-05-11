@@ -15,7 +15,8 @@ export const config = {
 
 const handler = async (req: Request): Promise<Response> => {
   try {
-    const { model, messages, key, prompt, temperature } = (await req.json()) as ChatBody;
+    const { model, messages, key, prompt, temperature } =
+      (await req.json()) as ChatBody;
 
     await init((imports) => WebAssembly.instantiate(wasm, imports));
     const encoding = new Tiktoken(
@@ -41,18 +42,33 @@ const handler = async (req: Request): Promise<Response> => {
 
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
-      const tokens = encoding.encode(message.content);
+      if (message.role === 'user') {
+        const tokens = encoding.encode(message.content);
 
-      if (tokenCount + tokens.length + 1000 > model.tokenLimit) {
-        break;
+        if (tokenCount + tokens.length + 1000 > model.tokenLimit) {
+          break;
+        }
+        tokenCount += tokens.length;
+
+        messagesToSend = [message, ...messagesToSend];
       }
-      tokenCount += tokens.length;
-      messagesToSend = [message, ...messagesToSend];
+
+      // tokenCount = tokens.length;
+      // messagesToSend = [message];
     }
+
+    //console.log(messagesToSend);
+    console.log('tokenCount', tokenCount);
 
     encoding.free();
 
-    const stream = await OpenAIStream(model, promptToSend, temperatureToUse, key, messagesToSend);
+    const stream = await OpenAIStream(
+      model,
+      promptToSend,
+      temperatureToUse,
+      key,
+      messagesToSend,
+    );
 
     return new Response(stream);
   } catch (error) {
